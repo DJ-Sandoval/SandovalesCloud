@@ -2,10 +2,8 @@ package com.dev.apisandovalescloud.service;
 
 import com.dev.apisandovalescloud.config.StorageProperties;
 import com.dev.apisandovalescloud.dto.FileItemDTO;
-import com.dev.apisandovalescloud.exception.InvalidPathRequestException;
-import com.dev.apisandovalescloud.exception.ResourceConflictException;
-import com.dev.apisandovalescloud.exception.ResourceNotFoundException;
-import com.dev.apisandovalescloud.exception.StorageException;
+import com.dev.apisandovalescloud.exception.*;
+import com.dev.apisandovalescloud.util.ImagePreviewSupport;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -142,6 +140,20 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new StorageException("No se pudo guardar el archivo: " + originalName, e);
         }
+    }
+
+    public PreviewFile loadFileForPreview(String relativePath) {
+        Path file = resolvePath(relativePath);
+        if (!Files.exists(file) || Files.isDirectory(file)) {
+            throw new ResourceNotFoundException("Archivo no encontrado: " + relativePath);
+        }
+        String contentType = ImagePreviewSupport.contentTypeFor(file.getFileName().toString())
+                .orElseThrow(() -> new UnsupportedPreviewException(
+                        "Formato no soportado para vista previa. Formatos permitidos: png, jpg, jpeg, ico, svg."));
+        return new PreviewFile(file, contentType);
+    }
+
+    public record PreviewFile(Path path, String contentType) {
     }
 
     // ---------- DESCARGAR ----------

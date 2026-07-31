@@ -79,6 +79,27 @@ public class FileController {
         }
     }
 
+    /**
+     * Vista previa de una imagen (se muestra inline en el navegador, no se descarga).
+     * Formatos soportados: png, jpg, jpeg, ico, svg.
+     * Ej: GET /api/files/preview?path=fotos/perfil.png
+     */
+    @GetMapping("/preview")
+    public ResponseEntity<Resource> preview(@RequestParam String path) {
+        FileStorageService.PreviewFile preview = storageService.loadFileForPreview(path);
+        try {
+            Resource resource = new UrlResource(preview.path().toUri());
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(preview.contentType()))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "inline; filename=\"" + preview.path().getFileName().toString() + "\"")
+                    .header(HttpHeaders.CACHE_CONTROL, "private, max-age=60")
+                    .body(resource);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /** Renombra un archivo o carpeta. */
     @PutMapping("/rename")
     public ResponseEntity<FileItemDTO> rename(@Valid @RequestBody RenameRequest request) {
