@@ -89,7 +89,9 @@ public class FileStorageService {
             boolean isDir = Files.isDirectory(path);
             long size = isDir ? 0 : Files.size(path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
-            return new FileItemDTO(path.getFileName().toString(), toRelative(path), isDir, size, modified);
+            String name = path.getFileName().toString();
+            boolean previewable = !isDir && ImagePreviewSupport.isSupported(name);
+            return new FileItemDTO(name, toRelative(path), isDir, size, modified, previewable);
         } catch (IOException e) {
             throw new StorageException("No se pudo leer metadata de: " + path, e);
         }
@@ -142,20 +144,6 @@ public class FileStorageService {
         }
     }
 
-    public PreviewFile loadFileForPreview(String relativePath) {
-        Path file = resolvePath(relativePath);
-        if (!Files.exists(file) || Files.isDirectory(file)) {
-            throw new ResourceNotFoundException("Archivo no encontrado: " + relativePath);
-        }
-        String contentType = ImagePreviewSupport.contentTypeFor(file.getFileName().toString())
-                .orElseThrow(() -> new UnsupportedPreviewException(
-                        "Formato no soportado para vista previa. Formatos permitidos: png, jpg, jpeg, ico, svg."));
-        return new PreviewFile(file, contentType);
-    }
-
-    public record PreviewFile(Path path, String contentType) {
-    }
-
     // ---------- DESCARGAR ----------
 
     public Path loadFileForDownload(String relativePath) {
@@ -164,6 +152,27 @@ public class FileStorageService {
             throw new ResourceNotFoundException("Archivo no encontrado: " + relativePath);
         }
         return file;
+    }
+
+    // ---------- VISTA PREVIA (imágenes) ----------
+
+    /**
+     * Resuelve un archivo para mostrarlo inline en el navegador (no descarga).
+     * Solo permite formatos de imagen soportados: png, jpg, jpeg, ico, svg.
+     * Devuelve la ruta del archivo junto con su Content-Type correcto.
+     */
+    public PreviewFile loadFileForPreview(String relativePath) {
+        Path file = resolvePath(relativePath);
+        if (!Files.exists(file) || Files.isDirectory(file)) {
+            throw new ResourceNotFoundException("Archivo no encontrado: " + relativePath);
+        }
+        String contentType = ImagePreviewSupport.contentTypeFor(file.getFileName().toString())
+                .orElseThrow(() -> new UnsupportedPreviewException(
+                        "Formato no soportado para vista previa. Formatos permitidos: png, jpg, jpeg, ico, svg,avi"));
+        return new PreviewFile(file, contentType);
+    }
+
+    public record PreviewFile(Path path, String contentType) {
     }
 
     // ---------- RENOMBRAR ----------
@@ -236,4 +245,5 @@ public class FileStorageService {
         return toFileItemDTO(target);
     }
 }
+
 

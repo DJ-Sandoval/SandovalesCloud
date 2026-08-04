@@ -7,7 +7,8 @@ public record FileItemDTO(
         String path,        // ruta relativa desde la raíz (la que usará el cliente en próximas llamadas)
         boolean directory,
         long sizeInBytes,
-        Instant lastModified
+        Instant lastModified,
+        boolean previewable
 ) {
 }
 
