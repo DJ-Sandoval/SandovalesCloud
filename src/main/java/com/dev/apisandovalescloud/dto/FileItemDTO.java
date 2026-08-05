@@ -8,7 +8,8 @@ public record FileItemDTO(
         boolean directory,
         long sizeInBytes,
         Instant lastModified,
-        boolean previewable
+        boolean previewable,
+        String previewType
 ) {
 }
 

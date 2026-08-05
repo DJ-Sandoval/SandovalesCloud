@@ -7,7 +7,10 @@ import com.dev.apisandovalescloud.service.FileStorageService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -85,20 +88,42 @@ public class FileController {
      * Ej: GET /api/files/preview?path=fotos/perfil.png
      */
     @GetMapping("/preview")
-    public ResponseEntity<Resource> preview(@RequestParam String path) {
+    public ResponseEntity<ResourceRegion> preview(@RequestParam String path,
+                                                  @RequestHeader HttpHeaders headers) {
         FileStorageService.PreviewFile preview = storageService.loadFileForPreview(path);
         try {
-            Resource resource = new UrlResource(preview.path().toUri());
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(preview.contentType()))
+            UrlResource resource = new UrlResource(preview.path().toUri());
+            long contentLength = resource.contentLength();
+            MediaType mediaType = MediaType.parseMediaType(preview.contentType());
+
+            List<HttpRange> ranges = headers.getRange();
+            ResourceRegion region;
+            HttpStatus status;
+
+            if (ranges == null || ranges.isEmpty()) {
+                region = new ResourceRegion(resource, 0, contentLength);
+                status = HttpStatus.OK;
+            } else {
+                // Verificar que el rango sea válido
+                HttpRange range = ranges.get(0);
+                long start = range.getRangeStart(contentLength);
+                long end = range.getRangeEnd(contentLength);
+                region = new ResourceRegion(resource, start, end - start + 1);
+                status = HttpStatus.PARTIAL_CONTENT;
+            }
+
+            return ResponseEntity.status(status)
+                    .contentType(mediaType)
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             "inline; filename=\"" + preview.path().getFileName().toString() + "\"")
                     .header(HttpHeaders.CACHE_CONTROL, "private, max-age=60")
-                    .body(resource);
-        } catch (MalformedURLException e) {
+                    .body(region);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
 
     /** Renombra un archivo o carpeta. */
     @PutMapping("/rename")

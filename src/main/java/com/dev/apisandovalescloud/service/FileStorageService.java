@@ -3,7 +3,7 @@ package com.dev.apisandovalescloud.service;
 import com.dev.apisandovalescloud.config.StorageProperties;
 import com.dev.apisandovalescloud.dto.FileItemDTO;
 import com.dev.apisandovalescloud.exception.*;
-import com.dev.apisandovalescloud.util.ImagePreviewSupport;
+import com.dev.apisandovalescloud.util.PreviewSupport;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -90,8 +90,12 @@ public class FileStorageService {
             long size = isDir ? 0 : Files.size(path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
             String name = path.getFileName().toString();
-            boolean previewable = !isDir && ImagePreviewSupport.isSupported(name);
-            return new FileItemDTO(name, toRelative(path), isDir, size, modified, previewable);
+
+            PreviewSupport.PreviewMeta preview = isDir ? null : PreviewSupport.resolve(name).orElse(null);
+            boolean previewable = preview != null;
+            String previewType = preview == null ? null : preview.kind().name().toLowerCase();
+
+            return new FileItemDTO(name, toRelative(path), isDir, size, modified, previewable, previewType);
         } catch (IOException e) {
             throw new StorageException("No se pudo leer metadata de: " + path, e);
         }
@@ -154,11 +158,11 @@ public class FileStorageService {
         return file;
     }
 
-    // ---------- VISTA PREVIA (imágenes) ----------
+    // ---------- VISTA PREVIA (imágenes y video) ----------
 
     /**
      * Resuelve un archivo para mostrarlo inline en el navegador (no descarga).
-     * Solo permite formatos de imagen soportados: png, jpg, jpeg, ico, svg.
+     * Formatos soportados: png, jpg, jpeg, ico, svg (imagen) y mp4 (video).
      * Devuelve la ruta del archivo junto con su Content-Type correcto.
      */
     public PreviewFile loadFileForPreview(String relativePath) {
@@ -166,10 +170,10 @@ public class FileStorageService {
         if (!Files.exists(file) || Files.isDirectory(file)) {
             throw new ResourceNotFoundException("Archivo no encontrado: " + relativePath);
         }
-        String contentType = ImagePreviewSupport.contentTypeFor(file.getFileName().toString())
+        PreviewSupport.PreviewMeta meta = PreviewSupport.resolve(file.getFileName().toString())
                 .orElseThrow(() -> new UnsupportedPreviewException(
-                        "Formato no soportado para vista previa. Formatos permitidos: png, jpg, jpeg, ico, svg,avi"));
-        return new PreviewFile(file, contentType);
+                        "Formato no soportado para vista previa. Formatos permitidos: png, jpg, jpeg, ico, svg, mp4."));
+        return new PreviewFile(file, meta.contentType());
     }
 
     public record PreviewFile(Path path, String contentType) {
@@ -245,5 +249,4 @@ public class FileStorageService {
         return toFileItemDTO(target);
     }
 }
-
 
